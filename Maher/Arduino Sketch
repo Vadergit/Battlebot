@@ -1,0 +1,151 @@
+/*
+  L298/293DD libary:   https://robojax.com/learn/arduino/?vid=robojax_ESP32_DC_motor_L298N
+  PS4 Libary:          https://github.com/aed3/PS4-esp32
+
+*/
+#include <PS4Controller.h>
+#include <Robojax_L298N_DC_motor.h>
+#include <Servo.h>
+#include <TFT_eSPI.h>
+TFT_eSPI tft = TFT_eSPI();
+
+
+// motor 1 settings
+#define CHA 2
+#define ENA 27 // this pin must be PWM enabled pin if Arduino board is used
+#define IN1 26
+#define IN2 25
+
+// motor 2 settings
+#define IN3 13
+#define IN4 17
+#define ENB 33// this pin must be PWM enabled pin if Arduino board is used
+#define CHB 3
+
+const int CCW = 2; // do not change
+const int CW  = 1; // do not change
+int dirL  = 1;
+int dirR = 1;
+#define motor1 1 // do not change
+#define motor2 2 // do not change
+
+Robojax_L298N_DC_motor robot(IN1, IN2, ENA, CHA,  IN3, IN4, ENB, CHB);
+
+// Weapon settings
+
+Servo attack;
+static const int attackPin = 15;
+int Attack;
+int maxSpeedAttack = 2000;
+int minSpeedAttack = 1000;
+int speedAttack = 1000;
+
+// PS4 input Varibals
+
+int Drive;
+int Rotate;
+float DR = 0.5;
+
+int speedMotorL = 0;
+int speedMotorR = 0;
+char serialnumber[]  =  "02:02:03:04:05:06";
+void setup() {
+  Serial.begin(115200);
+  PS4.begin("02:02:03:04:05:06");
+  robot.begin();
+  attack.attach(attackPin);
+  attack.writeMicroseconds(minSpeedAttack);
+  delay(300);
+
+
+  tft.begin();
+  tft.setRotation(1);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextFont(2);
+
+  tft.setCursor (0, 0);
+  tft.print("Property of: ");
+  tft.setCursor (0, 20);
+  tft.print("Dario Neuenschwander");
+  tft.setCursor (0, 40);
+  tft.print("PS4 Serial: ");
+  tft.setCursor (80, 40);
+  tft.print(serialnumber);
+
+
+}
+void loop() {
+
+
+
+  if (PS4.isConnected()) {
+    PS4.setRumble((PS4.Cross() * 255), PS4.R2Value());
+    tft.setCursor (0, 60);
+    tft.print("Conectet    ");
+    if (PS4.LStickX()) {
+
+      if (PS4.LStickX() > 8 || PS4.LStickX() < -8) {
+        Rotate = PS4.LStickX();
+      }
+    }
+    if (PS4.LStickY() > 8 || PS4.LStickY() < -8) {
+      Drive = (PS4.LStickY() * -1);
+    }
+
+    if (0 <= PS4.LStickX() && PS4.LStickX() <= 8)
+    {
+      Rotate = 0;
+    }
+    if (0 <= PS4.LStickY() && PS4.LStickY() <= 8)
+    {
+      Drive = 0;
+    }
+
+    Attack = (PS4.R2Value() / 7);
+
+    if (PS4.Cross())  {
+      Attack = maxSpeedAttack;
+    
+    }
+    speedMotorL = (Drive +  (Rotate * DR));
+    speedMotorR = (Drive - (Rotate * DR));
+
+    if (speedMotorR > 1) {
+      dirR = 1;
+    }
+    if (speedMotorR < 1) {
+      speedMotorR = (speedMotorR * -1);
+      dirR = 2;
+    }
+    if (speedMotorL > 1) {
+      dirL = 1;
+    }
+    if (speedMotorL < 1) {
+      speedMotorL = (speedMotorL * -1);
+      dirL = 2;
+    }
+
+
+    robot.rotate(motor1, speedMotorL, dirL);
+    robot.rotate(motor2, speedMotorR, dirR);
+    speedAttack = map (Attack, 0, 255, minSpeedAttack, maxSpeedAttack);
+    attack.writeMicroseconds(speedAttack);
+         PS4.sendToController();
+      delay(10);
+
+
+
+    Serial.printf("Left StickL at %d\n", speedAttack);
+    //  Serial.printf("Left StickL at %d\n", speedMotorL);
+    //  Serial.printf("Left Stick R at %d\n", speedMotorR);
+
+  }
+  else {
+    tft.setCursor (0, 60);
+    tft.print("Not Conectet");
+    robot.rotate(motor1, 0, dirL);
+    robot.rotate(motor2, 0, dirR);
+    attack.writeMicroseconds(minSpeedAttack);
+  }
+}
